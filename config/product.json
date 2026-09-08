@@ -1,0 +1,25 @@
+{
+  "//": "Public product + store config. Change product/store values here or override per-install via environment variables (see lib/config.ts and .env.example). Every value below has a graceful fallback so the demo runs with zero configuration.",
+  "store": {
+    "storeName": "PDFLaunch Demo Store",
+    "logoUrl": "/cover.png",
+    "supportEmail": "complainhere40@outlook.com"
+  },
+  "product": {
+    "title": "The Founder's Guide to Automated PDF Delivery",
+    "description": "A practical guide to selling and delivering digital PDF products, fully automated — from checkout to watermarked download link.",
+    "priceCents": 2900,
+    "currency": "usd",
+    "coverImage": "/cover.png"
+  },
+  "files": {
+    "uploadDir": "data/uploads",
+    "dataFile": "data/store.json"
+  },
+  "security": {
+    "downloadLinkTtlHours": 72,
+    "watermark": true,
+    "watermarkOpacity": 0.45,
+    "watermarkText": "Licensed to"
+  }
+}
