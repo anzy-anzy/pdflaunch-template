@@ -24,7 +24,16 @@ type SalesSummary = {
 
 const CHART_DAYS = 14;
 
-export default function AdminDashboard() {
+/**
+ * @param adminLocked — true when ADMIN_PASSWORD is set (lock engaged). The
+ * dashboard shows a "Sign out" button only in that mode; demo mode (unset)
+ * is open with nothing to sign out of.
+ */
+export default function AdminDashboard({
+  adminLocked = false,
+}: {
+  adminLocked?: boolean;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [upload, setUpload] = useState<UploadRecord | null>(null);
@@ -44,6 +53,11 @@ export default function AdminDashboard() {
     let cancelled = false;
     fetch("/api/sales")
       .then((res) => {
+        if (res.status === 401) {
+          // Session expired/missing while the lock is on → back to the form.
+          window.location.href = "/admin?login=1";
+          throw new Error("Unauthorized");
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
@@ -51,7 +65,8 @@ export default function AdminDashboard() {
         if (!cancelled) setSales(data as SalesSummary);
       })
       .catch((err) => {
-        if (!cancelled) setSalesError(`Could not load sales: ${(err as Error).message}`);
+        if (!cancelled)
+          setSalesError(`Could not load sales: ${(err as Error).message}`);
       });
     return () => {
       cancelled = true;
@@ -66,6 +81,10 @@ export default function AdminDashboard() {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (res.status === 401) {
+        window.location.href = "/admin?login=1";
+        return;
+      }
       const data = await res.json();
       if (!res.ok) {
         setUploadError(data.error ?? "Upload failed.");
@@ -87,12 +106,32 @@ export default function AdminDashboard() {
     window.setTimeout(() => setSaved(false), 2500);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/admin";
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-2xl font-bold text-slate-900">Admin dashboard</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Revenue overview, PDF upload, and payments &amp; delivery settings.
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Admin dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Revenue overview, PDF upload, and payments &amp; delivery settings.
+          </p>
+        </div>
+        {adminLocked && (
+          <button
+            onClick={handleSignOut}
+            className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+          >
+            Sign out
+          </button>
+        )}
+      </div>
 
       <div className="mt-8 space-y-6">
         {/* ---------------- Sales overview ---------------- */}

@@ -23,6 +23,10 @@ the whole flow immediately, then drop in your keys when you're ready to sell.
 | `app/page.tsx` | Public product landing page — title, description, price, **cover image**, store branding, support link, **Buy Now** |
 | `components/BuyButton.tsx` | Client button → `POST /api/checkout` (Stripe) or `POST /api/checkout/flutterwave` (Mobile Money) → hosted checkout redirect or demo panel |
 | `app/admin/AdminDashboard.tsx` | Admin dashboard: **sales overview (revenue + 14-day chart)**, upload UI, payment/email fields, watermark toggle |
+| `app/admin/LoginForm.tsx` | Password form at `/admin` (shown when `ADMIN_PASSWORD` is set and no session) |
+| `app/api/admin/login/route.ts` | `POST` password check (`timingSafeEqual`) → sets the HttpOnly `pdflaunch_admin` cookie |
+| `app/api/admin/logout/route.ts` | `POST` clears the admin session cookie |
+| `lib/admin.ts` | Admin lock helpers — `isAdminLocked()`, HMAC token create/verify, `requireAdmin()` guard |
 | `app/api/sales/route.ts` | `GET` revenue + orders for the dashboard |
 | `app/api/checkout/route.ts` | Stripe Checkout session creator (global cards + wallets, or demo stub) |
 | `app/api/checkout/flutterwave/route.ts` | Flutterwave hosted payment creator (MTN MoMo / Orange Money / cards, or demo stub) |
@@ -142,6 +146,7 @@ Everything flows through `lib/config.ts`. Priority: **environment variable >
 | `RESEND_API_KEY` | — | Delivery email via Resend (`re_…`) |
 | `SENDGRID_API_KEY` | — | Delivery email fallback via SendGrid (`SG.…`) |
 | `EMAIL_FROM` | PDFLaunch <delivery@example.com> | Verified sender address |
+| `ADMIN_PASSWORD` | — (unset = open) | Password for `/admin` + `/api/upload` + `/api/sales` (see [Admin password](#-admin-password-lock-or-open)) |
 | `APP_BASE_URL` | request host | Public origin for download/email links |
 
 > **Zero-decimal currencies**: Stripe charges in the smallest unit — for
@@ -192,6 +197,41 @@ Note: the webhook path always re-verifies via the Flutterwave API, so with no
 real key it logs the attempt and returns `{ received: true }` without
 fulfilling — delivery in demo mode happens through the checkout stub above
 (or the redirect callback with a real transaction).
+
+## 🔒 Admin password (lock or open)
+
+The admin area (`/admin` dashboard, `/api/upload`, `/api/sales`) is **open by
+default** — demo mode, zero configuration, perfect for the local click-through.
+When you deploy for real, set `ADMIN_PASSWORD` in `.env.local`:
+
+- **`ADMIN_PASSWORD` unset** → admin stays open (same behaviour as the demo).
+- **`ADMIN_PASSWORD` set** → the lock engages:
+
+  - `GET /admin` with no valid session shows a **password form**.
+  - `POST /api/admin/login` with `{ "password": "..." }` checks the password
+    (constant-time) and sets an **HttpOnly, SameSite=Lax `pdflaunch_admin`**
+    cookie — an HMAC token keyed by the password, so no server state/DB needed.
+  - `POST /api/admin/logout` clears the cookie; the dashboard shows a
+    **Sign out** button.
+  - `/api/upload` and `/api/sales` return **401** without a valid session.
+  - Checkout, webhooks and download links stay **public** (buyers never log in).
+
+Generate a strong password:
+
+```bash
+openssl rand -base64 32
+# or:  node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+```bash
+curl -X POST http://localhost:3000/api/admin/login \
+  -H 'Content-Type: application/json' \
+  -d '{"password":"YOUR_ADMIN_PASSWORD"}'
+# → 200 + Set-Cookie: pdflaunch_admin=… ; reuse that cookie for /api/upload
+```
+
+> Keep `ADMIN_PASSWORD` a long random secret — it is both the login password
+> and the HMAC key for the session token, so treat it like an API key.
 
 ## 🧪 API reference
 

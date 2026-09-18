@@ -5,17 +5,26 @@
  * validates it, and stores it as the master copy that gets watermarked and
  * delivered to buyers. Backed by lib/store.ts + the ./data directory.
  *
+ * Protected when ADMIN_PASSWORD is set: requires the `pdflaunch_admin` session
+ * cookie (see lib/admin.ts), otherwise returns 401. With ADMIN_PASSWORD unset
+ * (demo mode) it stays open.
+ *
  * Returns the upload record so the admin UI can show a confirmation.
  */
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createUpload, getUpload } from "@/lib/store";
+import { requireAdmin } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
 // Max upload size (not `export`ed — Next.js Routes only allow HTTP methods).
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   const contentType = request.headers.get("content-type") ?? "";
 
   try {
